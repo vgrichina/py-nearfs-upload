@@ -5,6 +5,8 @@ from typing import List, Dict, Any
 from py_near.account import Account
 from py_near.providers import JsonProvider
 from nearfs_upload import upload_files, DEFAULT_OPTIONS
+import json
+from pathlib import Path
 
 NETWORK_URLS = {
     'mainnet': 'https://rpc.mainnet.near.org',
@@ -30,23 +32,27 @@ async def main(args):
     signer_private_key = os.environ.get('NEAR_SIGNER_KEY') or os.environ.get('NEAR_PRIVATE_KEY')
 
     if not signer_private_key:
-        raise ValueError("NEAR_SIGNER_KEY or NEAR_PRIVATE_KEY environment variable is not set")
+        # Try to load private key from ~/.near-credentials
+        credentials_path = Path.home() / '.near-credentials' / network / f'{signer_account_id}.json'
+        if credentials_path.exists():
+            with open(credentials_path, 'r') as f:
+                credentials = json.load(f)
+                signer_private_key = credentials.get('private_key')
+
+    if not signer_private_key:
+        raise ValueError("NEAR_SIGNER_KEY or NEAR_PRIVATE_KEY environment variable is not set, and no credentials file found")
 
     options = {
         **DEFAULT_OPTIONS,
         "account_id": signer_account_id,
         "private_key": signer_private_key,
+        "network_id": network,  # Use network_id instead of network
     }
 
     # Set up the network provider
     if network not in NETWORK_URLS:
         raise ValueError(f"Unsupported network: {network}")
-    provider = JsonProvider(NETWORK_URLS[network])
     
-    # Create the account with the correct network provider
-    account = Account(signer_account_id, signer_private_key, provider=provider)
-    options["account"] = account
-
     files: List[Dict[str, Any]] = []
     for file_path in args.files:
         with open(file_path, 'rb') as f:
