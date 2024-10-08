@@ -13,20 +13,25 @@ DEFAULT_OPTIONS = {
     "status_callback": lambda current_blocks, total_blocks: None,
     "timeout": 2.5,
     "retry_count": 3,
-    "gateway_url": "https://ipfs.web4.near.page",
+    "gateway_url": {
+        "mainnet": "https://ipfs.web4.near.page",
+        "testnet": "https://ipfs.web4.testnet.page"
+    },
     "account_id": None,
     "private_key": None,
     "network_id": "mainnet",
 }
+
 async def is_already_uploaded(cid: bytes, account: Account, options: Dict[str, Any] = DEFAULT_OPTIONS) -> bool:
-    log, timeout, retry_count, gateway_url = options["log"], options["timeout"], options["retry_count"], options["gateway_url"]
+    log, timeout, retry_count = options["log"], options["timeout"], options["retry_count"]
+    gateway_url = options["gateway_url"][options["network_id"]]
     cid32 = cid_to_string(cid)
     url_to_check = f"{gateway_url}/ipfs/{cid32}"
 
     for _ in range(retry_count):
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.head(url_to_check, timeout=timeout) as response:
+                async with session.head(url_to_check, timeout=timeout, allow_redirects=True) as response:
                     if response.status == 200:
                         log(f"Block {cid32} already exists on chain, skipping")
                         return True
